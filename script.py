@@ -5,32 +5,25 @@ import os
 import subprocess
 from moviepy.editor import VideoFileClip, AudioFileClip
 
-# --- CẤU HÌNH LẤY TỪ GITHUB SECRETS ---
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 PEXELS_KEY = os.getenv("PEXELS_API_KEY")
 
-# 1. LẤY TIN MỚI NHẤT TỪ VNEXPRESS
 def get_news():
     url = "https://vnexpress.net/rss/tin-moi-nhat.rss"
     feed = feedparser.parse(url)
-    if feed.entries:
-        return feed.entries[0].title, feed.entries[0].description
-    return "Tin nóng trong ngày", "Đang cập nhật nội dung mới nhất."
+    return feed.entries[0].title, feed.entries[0].description
 
-# 2. DÙNG GEMINI VIẾT KỊCH BẢN & TỪ KHÓA
 def ask_gemini(title, desc):
     genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel('gemini-pro')
-    prompt = f"Dựa trên tin: {title}. Hãy viết 1 câu kịch bản ngắn dưới 20 từ để đọc và 1 từ khóa tiếng Anh về chủ đề này để tìm video nền. Trả về dạng: Kịch bản | Từ khóa"
+    # Dùng model gemini-1.5-flash để tránh lỗi 404 models/gemini-pro
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    prompt = f"Dựa trên tin: {title}. Hãy viết 1 câu kịch bản ngắn dưới 20 từ và 1 từ khóa tiếng Anh về chủ đề này. Trả về dạng: Kịch bản | Từ khóa"
     response = model.generate_content(prompt)
     return response.text.split("|")
 
-# 3. TẠO GIỌNG ĐỌC TIẾNG VIỆT (MIỄN PHÍ)
 def create_voice(text):
-    # Sử dụng giọng Hoài Mỹ của Microsoft
     subprocess.run(f'edge-tts --voice vi-VN-HoaiMyNeural --text "{text}" --write-media voice.mp3', shell=True)
 
-# 4. TẢI VIDEO NỀN TỪ PEXELS
 def download_video(keyword):
     headers = {"Authorization": PEXELS_KEY}
     url = f"https://api.pexels.com/videos/search?query={keyword}&per_page=1&orientation=portrait"
@@ -39,21 +32,19 @@ def download_video(keyword):
     with open("bg.mp4", 'wb') as f:
         f.write(requests.get(video_url).content)
 
-# 5. GHÉP VIDEO
 def make_final_video():
     video = VideoFileClip("bg.mp4")
     audio = AudioFileClip("voice.mp3")
-    # Cắt video theo độ dài âm thanh
     final = video.set_audio(audio).set_duration(audio.duration)
-    final.write_videofile("final_video.mp4", fps=24, codec="libx264")
+    # Thêm các thông số để đảm bảo xuất file ổn định trên GitHub
+    final.write_videofile("final_video.mp4", fps=24, codec="libx264", audio_codec="aac", temp_audiofile='temp-audio.m4a', remove_temp=True)
 
-# CHẠY TOÀN BỘ QUY TRÌNH
 try:
     title, desc = get_news()
-    script, keyword = ask_gemini(title, desc)
-    create_voice(script.strip())
-    download_video(keyword.strip())
+    res = ask_gemini(title, desc)
+    create_voice(res[0].strip())
+    download_video(res[1].strip())
     make_final_video()
-    print("Thành công! Video đã sẵn sàng.")
+    print("DONE!")
 except Exception as e:
-    print(f"Lỗi: {e}")
+    print(f"Lỗi rồi: {e}")
