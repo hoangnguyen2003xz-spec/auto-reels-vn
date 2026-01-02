@@ -3,7 +3,7 @@ import google.generativeai as genai
 import requests
 import os
 import subprocess
-from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
+from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips, vfx
 
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 PEXELS_KEY = os.getenv("PEXELS_API_KEY")
@@ -16,20 +16,18 @@ def get_news():
 def ask_gemini(title, desc):
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash-latest')
-    # Yêu cầu Gemini chia nhỏ kịch bản thành các phân đoạn có từ khóa riêng
     prompt = f"""
     Dựa trên tin: {title}. 
-    Hãy viết kịch bản chi tiết dài khoảng 45 giây (tầm 120 chữ).
-    Chia kịch bản thành 4 đoạn nhỏ. Với mỗi đoạn, hãy cho 1 từ khóa tiếng Anh miêu tả hình ảnh phù hợp.
-    Trả về định dạng duy nhất như sau (không giải thích thêm):
-    Kịch bản đoạn 1 | Từ khóa 1
-    Kịch bản đoạn 2 | Từ khóa 2
-    Kịch bản đoạn 3 | Từ khóa 3
-    Kịch bản đoạn 4 | Từ khóa 4
+    Viết kịch bản tin tức khoảng 120 chữ. 
+    Chia kịch bản thành 4 phần. Với mỗi phần, hãy cho 1 từ khóa tiếng Anh miêu tả hình ảnh.
+    Trả về định dạng: 
+    Kịch bản 1 | Từ khóa 1
+    Kịch bản 2 | Từ khóa 2
+    Kịch bản 3 | Từ khóa 3
+    Kịch bản 4 | Từ khóa 4
     """
     response = model.generate_content(prompt)
-    lines = [line for line in response.text.strip().split('\n') if "|" in line]
-    return lines
+    return [line for line in response.text.strip().split('\n') if "|" in line]
 
 def create_voice(full_text):
     subprocess.run(f'edge-tts --voice vi-VN-HoaiMyNeural --text "{full_text}" --write-media voice.mp3', shell=True)
@@ -38,7 +36,7 @@ def download_video(keyword, filename):
     headers = {"Authorization": PEXELS_KEY}
     url = f"https://api.pexels.com/videos/search?query={keyword}&per_page=1&orientation=portrait"
     r = requests.get(url, headers=headers).json()
-    if r['videos']:
+    if r.get('videos'):
         video_url = r['videos'][0]['video_files'][0]['link']
         with open(filename, 'wb') as f:
             f.write(requests.get(video_url).content)
@@ -53,8 +51,13 @@ def make_multi_clip_video(segments):
     for i in range(len(segments)):
         fname = f"part_{i}.mp4"
         if os.path.exists(fname):
-            clip = VideoFileClip(fname).subclip(0, duration_per_clip)
-            clip = clip.resize(height=1920) # Đảm bảo chuẩn dọc
+            clip = VideoFileClip(fname)
+            # Nếu clip ngắn hơn thời gian cần thiết, lặp lại clip
+            if clip.duration < duration_per_clip:
+                clip = clip.fx(vfx.loop, duration=duration_per_clip)
+            else:
+                clip = clip.subclip(0, duration_per_clip)
+            clip = clip.resize(height=1920) # Chuẩn dọc TikTok
             clips.append(clip)
     
     final_video = concatenate_videoclips(clips, method="compose")
@@ -62,7 +65,7 @@ def make_multi_clip_video(segments):
     final_video.write_videofile("final_video.mp4", fps=24, codec="libx264")
 
 try:
-    print("--- Bat dau tao video nhieu canh ---")
+    print("--- Bat dau quy trinh ghep nhieu canh ---")
     title, desc = get_news()
     segments = ask_gemini(title, desc)
     
@@ -72,14 +75,11 @@ try:
         script_part = parts[0].strip()
         keyword_part = parts[1].strip()
         full_script += script_part + " "
-        print(f"Dang tai clip {i+1} cho tu khoa: {keyword_part}")
+        print(f"Dang tai canh {i+1} cho: {keyword_part}")
         download_video(keyword_part, f"part_{i}.mp4")
     
-    print("Dang tao giong doc...")
     create_voice(full_script)
-    
-    print("Dang ghep cac clip lai...")
     make_multi_clip_video(segments)
-    print("HOAN THANH!")
+    print("THANH CONG!")
 except Exception as e:
     print(f"Loi: {e}")
