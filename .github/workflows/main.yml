@@ -1,30 +1,34 @@
 name: Tu Dong Tao Video
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Nut bam tay
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 0 * * *' # Chay 7h sang hang ngay
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Cai dat Python
+      
+      - name: Cai dat Python 3.10
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10' # Nâng cấp lên bản 3.10 cho ổn định
+          python-version: '3.10'
+          
       - name: Cai dat thu vien
         run: |
           pip install --upgrade pip
           pip install moviepy==1.0.3 google-generativeai requests feedparser edge-tts
           sudo apt update && sudo apt install -y ffmpeg
+          
       - name: Chay Script tao video
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: python script.py
-      - name: Day video len Actions để tai ve
+        
+      - name: Luu video vao Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: video-thanh-pham
-          path: final_video.mp4
+          path: final_video.mp4 # Tên này phải trùng khớp với code Python
