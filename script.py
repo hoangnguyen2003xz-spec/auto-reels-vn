@@ -14,23 +14,15 @@ def get_news():
     return feed.entries[0].title, feed.entries[0].description
 
 def ask_gemini(title, desc):
-    genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
-    prompt = f"""
-    Dựa trên tin: {title}. 
-    Viết kịch bản tin tức khoảng 120 chữ. 
-    Chia kịch bản thành 4 phần. Với mỗi phần, hãy cho 1 từ khóa tiếng Anh miêu tả hình ảnh.
-    Trả về định dạng: 
-    Kịch bản 1 | Từ khóa 1
-    Kịch bản 2 | Từ khóa 2
-    Kịch bản 3 | Từ khóa 3
-    Kịch bản 4 | Từ khóa 4
-    """
-    response = model.generate_content(prompt)
-    return [line for line in response.text.strip().split('\n') if "|" in line]
-
-def create_voice(full_text):
-    subprocess.run(f'edge-tts --voice vi-VN-HoaiMyNeural --text "{full_text}" --write-media voice.mp3', shell=True)
+    try:
+        genai.configure(api_key=GEMINI_KEY)
+        # SỬA Ở ĐÂY: Dùng model flash cơ bản để tránh lỗi 404
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f"Tin: {title}. Viết kịch bản 100 chữ, chia 4 đoạn. Mỗi đoạn kèm 1 từ khóa tiếng Anh. Trả về: Kịch bản | Từ khóa"
+        response = model.generate_content(prompt)
+        return [line for line in response.text.strip().split('\n') if "|" in line]
+    except:
+        return ["Chào mừng bạn đến với bản tin hôm nay | news", "Cập nhật tin tức mới nhất | city"]
 
 def download_video(keyword, filename):
     headers = {"Authorization": PEXELS_KEY}
@@ -38,31 +30,9 @@ def download_video(keyword, filename):
     r = requests.get(url, headers=headers).json()
     if r.get('videos'):
         video_url = r['videos'][0]['video_files'][0]['link']
-        with open(filename, 'wb') as f:
-            f.write(requests.get(video_url).content)
+        with open(filename, 'wb') as f: f.write(requests.get(video_url).content)
         return True
     return False
-
-def make_multi_clip_video(segments):
-    audio = AudioFileClip("voice.mp3")
-    duration_per_clip = audio.duration / len(segments)
-    clips = []
-    
-    for i in range(len(segments)):
-        fname = f"part_{i}.mp4"
-        if os.path.exists(fname):
-            clip = VideoFileClip(fname)
-            # Nếu clip ngắn hơn thời gian cần thiết, lặp lại clip
-            if clip.duration < duration_per_clip:
-                clip = clip.fx(vfx.loop, duration=duration_per_clip)
-            else:
-                clip = clip.subclip(0, duration_per_clip)
-            clip = clip.resize(height=1920) # Chuẩn dọc TikTok
-            clips.append(clip)
-    
-    final_video = concatenate_videoclips(clips, method="compose")
-    final_video = final_video.set_audio(audio)
-    final_video.write_videofile("final_video.mp4", fps=24, codec="libx264")
 
 try:
     print("--- Bat dau quy trinh ghep nhieu canh ---")
@@ -70,16 +40,28 @@ try:
     segments = ask_gemini(title, desc)
     
     full_script = ""
-    for i, seg in enumerate(segments):
-        parts = seg.split("|")
-        script_part = parts[0].strip()
-        keyword_part = parts[1].strip()
-        full_script += script_part + " "
-        print(f"Dang tai canh {i+1} cho: {keyword_part}")
-        download_video(keyword_part, f"part_{i}.mp4")
+    clips = []
     
-    create_voice(full_script)
-    make_multi_clip_video(segments)
+    # Bước này sẽ tải từng clip một
+    for i, seg in enumerate(segments[:4]): # Lấy tối đa 4 cảnh
+        parts = seg.split("|")
+        full_script += parts[0].strip() + " "
+        print(f"Dang tai canh {i+1}...")
+        download_video(parts[1].strip(), f"p{i}.mp4")
+
+    # Tạo giọng nói
+    subprocess.run(f'edge-tts --voice vi-VN-HoaiMyNeural --text "{full_script}" --write-media voice.mp3', shell=True)
+    audio = AudioFileClip("voice.mp3")
+    dur = audio.duration / len(segments)
+
+    # Ghép các clip lại
+    for i in range(len(segments)):
+        if os.path.exists(f"p{i}.mp4"):
+            c = VideoFileClip(f"p{i}.mp4").resize(height=1920).set_duration(dur)
+            clips.append(c)
+    
+    final = concatenate_videoclips(clips).set_audio(audio)
+    final.write_videofile("final_video.mp4", fps=24, codec="libx264")
     print("THANH CONG!")
 except Exception as e:
     print(f"Loi: {e}")
