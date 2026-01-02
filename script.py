@@ -46,8 +46,12 @@ try:
     print("--- Bat dau quy trinh ---")
     title, desc = get_news()
     res = ask_gemini(title, desc)
-    script = res[0].strip()
-    keyword = res[1].strip()
+    
+    # Đảm bảo res có ít nhất 2 phần tử
+    script = res[0].strip() if len(res) > 0 else "Tin nóng trong ngày"
+    keyword = res[1].strip() if len(res) > 1 else "news"
+    
+    print(f"Kịch bản: {script} | Từ khóa: {keyword}")
     
     create_voice(script)
     download_video(keyword)
