@@ -1,31 +1,28 @@
 name: Tu Dong Tao Video
 on:
-  workflow_dispatch: # Nút bấm chạy ngay
+  workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *' # Tự động chạy 7h sáng mỗi ngày
+    - cron: '0 0 * * *'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
       - name: Cai dat Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
-          
+          python-version: '3.10' # Nâng cấp lên bản 3.10 cho ổn định
       - name: Cai dat thu vien
         run: |
+          pip install --upgrade pip
           pip install moviepy==1.0.3 google-generativeai requests feedparser edge-tts
           sudo apt update && sudo apt install -y ffmpeg
-          
       - name: Chay Script tao video
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: python script.py
-        
       - name: Day video len Actions để tai ve
         uses: actions/upload-artifact@v4
         with:
