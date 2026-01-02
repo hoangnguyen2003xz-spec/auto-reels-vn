@@ -16,7 +16,6 @@ def get_news():
 def ask_gemini(title, desc):
     try:
         genai.configure(api_key=GEMINI_KEY)
-        # Sử dụng gemini-1.5-flash-latest là bản ổn định nhất hiện tại
         model = genai.GenerativeModel('gemini-1.5-flash-latest')
         prompt = f"Dựa trên tin: {title}. Viết 1 câu kịch bản ngắn dưới 20 từ và 1 từ khóa tiếng Anh. Trả về: Kịch bản | Từ khóa"
         response = model.generate_content(prompt)
@@ -41,6 +40,7 @@ def make_final_video():
     final = video.set_audio(audio).set_duration(audio.duration)
     final.write_videofile("final_video.mp4", fps=24, codec="libx264", audio_codec="aac", temp_audiofile='temp-audio.m4a', remove_temp=True)
 
+# PHẦN QUAN TRỌNG: CHÚ Ý THỤT LỀ Ở ĐÂY
 try:
     print("--- Bat dau lam lai tu dau ---")
     title, desc = get_news()
@@ -50,4 +50,4 @@ try:
     make_final_video()
     print("THANH CONG!")
 except Exception as e:
-print(f"Loi: {e}")
+    print(f"Loi roi: {e}")
