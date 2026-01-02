@@ -16,11 +16,11 @@ def get_news():
 
 def ask_gemini(title, desc):
     genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    prompt = f"Dựa trên tin: {title}. Hãy viết 1 câu kịch bản ngắn dưới 20 từ và 1 từ khóa tiếng Anh về chủ đề này. Trả về đúng dạng: Kịch bản | Từ khóa (Không thêm ký tự khác)"
+    # Thêm chữ "-latest" vào sau tên model
+    model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+    prompt = f"Dựa trên tin: {title}. Hãy viết 1 câu kịch bản ngắn dưới 20 từ và 1 từ khóa tiếng Anh về chủ đề này. Trả về đúng dạng: Kịch bản | Từ khóa"
     response = model.generate_content(prompt)
-    content = response.text.replace("*", "") # Xóa bỏ các dấu sao nếu có
-    return content.split("|")
+    return response.text.split("|")
 
 def create_voice(text):
     # Tạo giọng đọc Hoài Mỹ
